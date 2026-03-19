@@ -11,6 +11,22 @@ import {
 import { autoStartServer, getServerStatus } from "./native-host";
 import { initTabSync } from "./tab-sync";
 
+// Inject a prompt into OpenCode via TUI API
+async function injectPrompt(prompt: string) {
+  const result = await chrome.storage.local.get("connectionConfig");
+  const config = (result.connectionConfig as ConnectionConfig) || {
+    baseUrl: "http://localhost:4096",
+  };
+  const baseUrl = config.baseUrl;
+  await fetch(`${baseUrl}/tui/clear-prompt`, { method: "POST" });
+  await fetch(`${baseUrl}/tui/append-prompt`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: prompt }),
+  });
+  await fetch(`${baseUrl}/tui/submit-prompt`, { method: "POST" });
+}
+
 // Open side panel when clicking the extension icon
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
@@ -182,20 +198,32 @@ async function handleMessage(
 
       case MSG.INJECT_PROMPT: {
         const { prompt } = message.payload as { prompt: string };
-        const { baseUrl } = await chrome.storage.local.get("connectionConfig")
-          .then((r) => (r.connectionConfig as ConnectionConfig) || { baseUrl: "http://localhost:4096" });
-        try {
-          await fetch(`${baseUrl}/tui/clear-prompt`, { method: "POST" });
-          await fetch(`${baseUrl}/tui/append-prompt`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: prompt }),
-          });
-          await fetch(`${baseUrl}/tui/submit-prompt`, { method: "POST" });
-          sendResponse({ ok: true });
-        } catch (err: any) {
-          sendResponse({ error: err.message });
-        }
+        await injectPrompt(prompt);
+        sendResponse({ ok: true });
+        break;
+      }
+
+      case MSG.QUICK_ACTION: {
+        const { action, text, context } = message.payload as {
+          action: string;
+          text: string;
+          context: { url: string; title: string; selectedText?: string };
+        };
+
+        const contextPrefix = context.title
+          ? `[Page: ${context.title}](${context.url})\n\n`
+          : "";
+
+        const prompts: Record<string, string> = {
+          explain: `Explain this:\n${text}`,
+          translate: `Translate this:\n${text}`,
+          summarize: `Summarize this:\n${text}`,
+          ask: text,
+        };
+
+        const prompt = contextPrefix + (prompts[action] || text);
+        await injectPrompt(prompt);
+        sendResponse({ ok: true });
         break;
       }
 

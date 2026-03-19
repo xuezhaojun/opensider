@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useChatStore } from "../store/chat";
 import { MSG } from "@/shared/types";
 
@@ -7,12 +7,41 @@ interface Props {
 }
 
 export function SettingsPanel({ onClose }: Props) {
-  const { serverUrl, setServerUrl, setConnected } = useChatStore();
+  const { serverUrl, setServerUrl, setConnected, isConnected } = useChatStore();
   const [url, setUrl] = useState(serverUrl);
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<"idle" | "connecting" | "success" | "error">("idle");
   const [autoStartStatus, setAutoStartStatus] = useState<"idle" | "starting" | "success" | "error">("idle");
   const [autoStartError, setAutoStartError] = useState("");
+  const [nativeHostStatus, setNativeHostStatus] = useState<{
+    checked: boolean;
+    available: boolean;
+    running: boolean;
+    managed: boolean;
+    port: number;
+  }>({ checked: false, available: false, running: false, managed: false, port: 4096 });
+
+  // Query native host and connection status on mount
+  useEffect(() => {
+    chrome.runtime.sendMessage({ type: MSG.SERVER_STATUS }).then((res) => {
+      setNativeHostStatus({
+        checked: true,
+        available: true,
+        running: res.running || false,
+        managed: res.managed || false,
+        port: res.port || 4096,
+      });
+      if (res.running) {
+        setAutoStartStatus("success");
+      }
+    }).catch(() => {
+      setNativeHostStatus((prev) => ({ ...prev, checked: true, available: false }));
+    });
+
+    if (isConnected) {
+      setStatus("success");
+    }
+  }, [isConnected]);
 
   const handleConnect = async () => {
     setStatus("connecting");
@@ -44,6 +73,7 @@ export function SettingsPanel({ onClose }: Props) {
       });
       if (result.success) {
         setAutoStartStatus("success");
+        setNativeHostStatus((prev) => ({ ...prev, running: true, managed: true, port: result.port }));
         setServerUrl(`http://localhost:${result.port}`);
         setUrl(`http://localhost:${result.port}`);
         // Auto-connect after server starts
@@ -65,9 +95,11 @@ export function SettingsPanel({ onClose }: Props) {
       }
     } catch {
       setAutoStartStatus("error");
-      setAutoStartError("Native host not installed. See setup instructions below.");
+      setAutoStartError("Native host not installed. Run the install command below first.");
     }
   };
+
+  const isServerConnected = isConnected && (status === "success" || status === "idle");
 
   return (
     <div className="p-4 space-y-4 overflow-y-auto">
@@ -83,29 +115,70 @@ export function SettingsPanel({ onClose }: Props) {
         </button>
       </div>
 
+      {/* Connection Status */}
+      {isServerConnected && (
+        <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
+          <div className="w-2 h-2 rounded-full bg-green-500" />
+          <div className="flex-1">
+            <p className="text-xs font-medium text-green-800 dark:text-green-300">
+              Connected to OpenCode
+            </p>
+            <p className="text-xs text-green-600 dark:text-green-400">{serverUrl}</p>
+          </div>
+        </div>
+      )}
+
       {/* Auto Start Section */}
       <div className="space-y-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
-        <p className="text-xs font-medium text-blue-800 dark:text-blue-300">
-          Auto Start (Recommended)
-        </p>
-        <p className="text-xs text-blue-600 dark:text-blue-400">
-          Automatically start OpenCode server. Requires one-time native host setup.
-        </p>
-        <button
-          onClick={handleAutoStart}
-          disabled={autoStartStatus === "starting"}
-          className="w-full rounded-lg bg-blue-600 px-3 py-2 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          {autoStartStatus === "starting"
-            ? "Starting server..."
-            : autoStartStatus === "success"
-              ? "Server started!"
-              : autoStartStatus === "error"
-                ? "Failed - Retry"
-                : "Start OpenCode Server"}
-        </button>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-blue-800 dark:text-blue-300">
+            Auto Start (Recommended)
+          </p>
+          {nativeHostStatus.checked && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              nativeHostStatus.available
+                ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
+                : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+            }`}>
+              {nativeHostStatus.available ? "Host installed" : "Host not found"}
+            </span>
+          )}
+        </div>
+
+        {nativeHostStatus.available && nativeHostStatus.running && isServerConnected ? (
+          <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-400">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            Server running on port {nativeHostStatus.port}
+          </div>
+        ) : (
+          <>
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              Automatically start OpenCode server via native host.
+            </p>
+            <button
+              onClick={handleAutoStart}
+              disabled={autoStartStatus === "starting"}
+              className="w-full rounded-lg bg-blue-600 px-3 py-2 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {autoStartStatus === "starting"
+                ? "Starting server..."
+                : autoStartStatus === "error"
+                  ? "Failed - Retry"
+                  : "Start OpenCode Server"}
+            </button>
+          </>
+        )}
+
         {autoStartError && (
           <p className="text-xs text-red-600 dark:text-red-400">{autoStartError}</p>
+        )}
+
+        {/* Install command - belongs here since it's part of auto-start setup */}
+        {!nativeHostStatus.available && (
+          <CopyableCommand
+            label="Install native host (one-time, run from project root)"
+            command={`./scripts/install-host.sh ${chrome.runtime.id}`}
+          />
         )}
       </div>
 
@@ -157,20 +230,9 @@ export function SettingsPanel({ onClose }: Props) {
                 ? "Failed - Retry"
                 : "Connect Manually"}
         </button>
-      </div>
-
-      {/* Setup Instructions */}
-      <div className="space-y-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
-        <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          Setup
-        </p>
 
         <CopyableCommand
-          label="Install native host (one-time, run from project root)"
-          command={`./scripts/install-host.sh ${chrome.runtime.id}`}
-        />
-        <CopyableCommand
-          label="Or start server manually"
+          label="Start server manually"
           command={`opencode serve --cors "chrome-extension://${chrome.runtime.id}"`}
         />
       </div>

@@ -114,38 +114,74 @@ function createToolbarHost() {
       position: fixed;
       display: none;
       align-items: center;
-      gap: 2px;
-      padding: 4px;
+      gap: 1px;
+      padding: 3px;
       background: white;
       border: 1px solid #e4e4e7;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.14), 0 1px 3px rgba(0,0,0,0.08);
       z-index: 2147483646;
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
     .opensider-toolbar.visible {
       display: flex;
     }
+    .opensider-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: #2563eb;
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      margin: 0 2px;
+      flex-shrink: 0;
+    }
+    .opensider-divider {
+      width: 1px;
+      height: 16px;
+      background: #e4e4e7;
+      margin: 0 2px;
+    }
     .opensider-toolbar button {
-      padding: 6px 10px;
+      padding: 5px 8px;
       border: none;
       background: none;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 12px;
-      color: #3f3f46;
+      font-size: 11px;
+      font-weight: 500;
+      color: #52525b;
       white-space: nowrap;
-      transition: background 0.1s;
+      transition: all 0.1s;
+      line-height: 1;
     }
     .opensider-toolbar button:hover {
-      background: #f4f4f5;
+      background: #eff6ff;
       color: #2563eb;
+    }
+    .opensider-toolbar button:active {
+      background: #dbeafe;
     }
   `;
   toolbarShadow.appendChild(style);
 
   toolbarEl = document.createElement("div");
   toolbarEl.className = "opensider-toolbar";
+
+  // Logo
+  const logo = document.createElement("span");
+  logo.className = "opensider-logo";
+  logo.textContent = "O";
+  toolbarEl.appendChild(logo);
+
+  // Divider
+  const divider = document.createElement("span");
+  divider.className = "opensider-divider";
+  toolbarEl.appendChild(divider);
 
   const actions = [
     { id: "explain", label: "Explain" },
