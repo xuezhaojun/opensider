@@ -7,7 +7,7 @@ set -e
 HOST_NAME="com.opensider.host"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-HOST_SCRIPT="$PROJECT_DIR/native-host/host.js"
+HOST_SCRIPT="$PROJECT_DIR/native-host/host.cjs"
 
 # Make host script executable
 chmod +x "$HOST_SCRIPT"
