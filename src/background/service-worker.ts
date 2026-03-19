@@ -57,31 +57,24 @@ async function injectPrompt(prompt: string) {
   const baseUrl = await getBaseUrl();
   console.log("[OpenSider] injectPrompt baseUrl:", baseUrl);
 
-  // Create a new session
-  const createRes = await fetch(`${baseUrl}/session`, {
+  // Use TUI API to inject prompt into the WebUI's current session
+  // This works because the WebUI is a TUI client connected via SSE
+  const clearRes = await fetch(`${baseUrl}/tui/clear-prompt`, {
+    method: "POST",
+  });
+  console.log("[OpenSider] clear-prompt:", clearRes.status);
+
+  const appendRes = await fetch(`${baseUrl}/tui/append-prompt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
+    body: JSON.stringify({ text: prompt }),
   });
-  const session = await createRes.json();
-  const sessionId = session.id;
-  console.log("[OpenSider] Created session:", sessionId);
+  console.log("[OpenSider] append-prompt:", appendRes.status);
 
-  // Send message to the session
-  const msgRes = await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
+  const submitRes = await fetch(`${baseUrl}/tui/submit-prompt`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      parts: [{ type: "text", text: prompt }],
-    }),
   });
-  console.log("[OpenSider] prompt_async response:", msgRes.status);
-
-  // Tell side panel to reload iframe, then switch session after it loads
-  chrome.runtime.sendMessage({
-    type: "opensider:reload-webui",
-    payload: { sessionId },
-  }).catch(() => {});
+  console.log("[OpenSider] submit-prompt:", submitRes.status);
 }
 
 // Open side panel when clicking the extension icon
