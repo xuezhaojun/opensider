@@ -57,10 +57,17 @@ async function injectPrompt(prompt: string) {
   const baseUrl = await getBaseUrl();
   console.log("[OpenSider] injectPrompt baseUrl:", baseUrl);
 
-  const sessionId = await ensureActiveSession(baseUrl);
-  console.log("[OpenSider] injectPrompt sessionId:", sessionId);
+  // Create a new session for each prompt so it shows cleanly in WebUI
+  const createRes = await fetch(`${baseUrl}/session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  const session = await createRes.json();
+  const sessionId = session.id;
+  console.log("[OpenSider] Created session:", sessionId);
 
-  // Send message to session
+  // Send message to the new session
   const msgRes = await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -70,13 +77,12 @@ async function injectPrompt(prompt: string) {
   });
   console.log("[OpenSider] prompt_async response:", msgRes.status);
 
-  // Switch WebUI to this session
-  const selRes = await fetch(`${baseUrl}/tui/select-session`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionID: sessionId }),
-  });
-  console.log("[OpenSider] select-session response:", selRes.status);
+  // Navigate the WebUI iframe to this session
+  // Tell side panel to update the iframe URL
+  chrome.runtime.sendMessage({
+    type: "opensider:navigate-session",
+    payload: { sessionId, baseUrl },
+  }).catch(() => {});
 }
 
 // Open side panel when clicking the extension icon

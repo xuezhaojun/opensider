@@ -1,66 +1,34 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "./store/chat";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { MSG } from "@/shared/types";
-import type { PageContext } from "@/shared/types";
 
 type ViewMode = "webui" | "settings";
-
-// Inject page context into OpenCode via TUI API (through service worker)
-function injectContextViaTUI(
-  action: string,
-  text: string,
-  context: PageContext
-) {
-  const contextPrefix = context.title
-    ? `[Page: ${context.title}](${context.url})\n\n`
-    : "";
-
-  const prompts: Record<string, string> = {
-    explain: `Explain this:\n${text}`,
-    translate: `Translate this:\n${text}`,
-    summarize: `Summarize this:\n${text}`,
-    ask: text,
-  };
-
-  const prompt = contextPrefix + (prompts[action] || text);
-
-  chrome.runtime.sendMessage({
-    type: MSG.INJECT_PROMPT,
-    payload: { prompt },
-  }).catch(() => {});
-}
 
 export default function App() {
   const {
     isConnected,
     setConnected,
-    setPageContext,
     serverUrl,
   } = useChatStore();
   const [viewMode, setViewMode] = useState<ViewMode>("webui");
+  const [iframeUrl, setIframeUrl] = useState(serverUrl);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Listen for quick actions from background
+  // Listen for session navigation from service worker
   useEffect(() => {
     const handler = (message: any) => {
-      switch (message.type) {
-        case MSG.QUICK_ACTION: {
-          const { action, text, context } = message.payload;
-          if (context) setPageContext(context);
-          if (isConnected) {
-            injectContextViaTUI(action, text, context);
-          }
-          break;
-        }
-        case MSG.PAGE_CONTEXT:
-          setPageContext(message.payload);
-          break;
+      if (message.type === "opensider:navigate-session") {
+        const { sessionId, baseUrl } = message.payload;
+        const newUrl = `${baseUrl}/session/${sessionId}`;
+        console.log("[OpenSider] Navigating iframe to:", newUrl);
+        setIframeUrl(newUrl);
       }
     };
 
     chrome.runtime.onMessage.addListener(handler);
     return () => chrome.runtime.onMessage.removeListener(handler);
-  }, [isConnected, setPageContext]);
+  }, []);
 
   // Check connection on mount
   useEffect(() => {
@@ -74,6 +42,11 @@ export default function App() {
       setViewMode("settings");
     });
   }, [setConnected]);
+
+  // Update iframe URL when serverUrl changes
+  useEffect(() => {
+    setIframeUrl(serverUrl);
+  }, [serverUrl]);
 
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-zinc-900">
@@ -100,7 +73,9 @@ export default function App() {
         <SettingsPanel onClose={() => setViewMode("webui")} />
       ) : isConnected ? (
         <iframe
-          src={serverUrl}
+          ref={iframeRef}
+          key={iframeUrl}
+          src={iframeUrl}
           className="flex-1 w-full border-none"
           allow="clipboard-read; clipboard-write"
         />
