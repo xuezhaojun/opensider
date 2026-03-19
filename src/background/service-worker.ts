@@ -55,23 +55,28 @@ async function ensureActiveSession(baseUrl: string): Promise<string> {
 // 2. Switch WebUI to show the session
 async function injectPrompt(prompt: string) {
   const baseUrl = await getBaseUrl();
+  console.log("[OpenSider] injectPrompt baseUrl:", baseUrl);
+
   const sessionId = await ensureActiveSession(baseUrl);
+  console.log("[OpenSider] injectPrompt sessionId:", sessionId);
 
   // Send message to session
-  await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
+  const msgRes = await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       parts: [{ type: "text", text: prompt }],
     }),
   });
+  console.log("[OpenSider] prompt_async response:", msgRes.status);
 
   // Switch WebUI to this session
-  await fetch(`${baseUrl}/tui/select-session`, {
+  const selRes = await fetch(`${baseUrl}/tui/select-session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionID: sessionId }),
   });
+  console.log("[OpenSider] select-session response:", selRes.status);
 }
 
 // Open side panel when clicking the extension icon
@@ -130,6 +135,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message.type !== "string" || !message.type.startsWith("opensider:")) {
     return false;
   }
+  console.log("[OpenSider] Received message:", message.type);
   handleMessage(message, sendResponse);
   return true; // Keep message channel open for async response
 });
