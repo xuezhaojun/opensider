@@ -11,20 +11,67 @@ import {
 import { autoStartServer, getServerStatus } from "./native-host";
 import { initTabSync } from "./tab-sync";
 
-// Inject a prompt into OpenCode via TUI API
-async function injectPrompt(prompt: string) {
+// Active session ID for the WebUI
+let activeSessionId: string | null = null;
+
+// Get the base URL from config
+async function getBaseUrl(): Promise<string> {
   const result = await chrome.storage.local.get("connectionConfig");
   const config = (result.connectionConfig as ConnectionConfig) || {
     baseUrl: "http://localhost:4096",
   };
-  const baseUrl = config.baseUrl;
-  await fetch(`${baseUrl}/tui/clear-prompt`, { method: "POST" });
-  await fetch(`${baseUrl}/tui/append-prompt`, {
+  return config.baseUrl;
+}
+
+// Ensure we have an active session, reuse the most recent one or create new
+async function ensureActiveSession(baseUrl: string): Promise<string> {
+  if (activeSessionId) return activeSessionId;
+
+  const res = await fetch(`${baseUrl}/session`);
+  const sessions = await res.json();
+  const list = Array.isArray(sessions) ? sessions : Object.values(sessions);
+
+  if (list.length > 0) {
+    // Sort by most recently updated
+    const sorted = (list as any[]).sort(
+      (a, b) => (b.time?.updated || 0) - (a.time?.updated || 0)
+    );
+    activeSessionId = sorted[0].id;
+  } else {
+    const createRes = await fetch(`${baseUrl}/session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const session = await createRes.json();
+    activeSessionId = session.id;
+  }
+
+  return activeSessionId!;
+}
+
+// Inject a prompt into OpenCode
+// 1. Send message via prompt_async (reliable, works with WebUI)
+// 2. Switch WebUI to show the session
+async function injectPrompt(prompt: string) {
+  const baseUrl = await getBaseUrl();
+  const sessionId = await ensureActiveSession(baseUrl);
+
+  // Send message to session
+  await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: prompt }),
+    body: JSON.stringify({
+      parts: [{ type: "text", text: prompt }],
+    }),
   });
-  await fetch(`${baseUrl}/tui/submit-prompt`, { method: "POST" });
+
+  // Switch WebUI to this session
+  await fetch(`${baseUrl}/tui/select-session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionID: sessionId }),
+  });
 }
 
 // Open side panel when clicking the extension icon

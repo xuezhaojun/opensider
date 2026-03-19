@@ -97,3 +97,24 @@ export function disconnectHost() {
     port = null;
   }
 }
+
+// File operations for tab sync
+export async function writeFile(filePath: string, content: string): Promise<boolean> {
+  const result = await sendToHost({ command: "write-file", path: filePath, content });
+  return result.type === "file-written";
+}
+
+export async function deleteFile(filePath: string): Promise<boolean> {
+  const result = await sendToHost({ command: "delete-file", path: filePath });
+  return result.type === "file-deleted";
+}
+
+export async function listFiles(dirPath: string): Promise<string[]> {
+  const result = await sendToHost({ command: "list-files", path: dirPath });
+  return result.files || [];
+}
+
+export async function getCwd(): Promise<string> {
+  const result = await sendToHost({ command: "get-cwd" });
+  return result.cwd || "/tmp";
+}
