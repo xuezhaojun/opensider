@@ -7,10 +7,11 @@ set -e
 HOST_NAME="com.opensider.host"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-HOST_SCRIPT="$PROJECT_DIR/native-host/host.cjs"
+HOST_LAUNCHER="$PROJECT_DIR/native-host/launcher.sh"
 
-# Make host script executable
-chmod +x "$HOST_SCRIPT"
+# Make scripts executable
+chmod +x "$HOST_LAUNCHER"
+chmod +x "$PROJECT_DIR/native-host/host.cjs"
 
 # Determine extension ID
 EXTENSION_ID="${1:-}"
@@ -52,7 +53,7 @@ create_manifest() {
 {
   "name": "$HOST_NAME",
   "description": "OpenSider Native Messaging Host - manages local OpenCode server",
-  "path": "$HOST_SCRIPT",
+  "path": "$HOST_LAUNCHER",
   "type": "stdio",
   "allowed_origins": [
     "chrome-extension://$EXTENSION_ID/"
@@ -64,7 +65,7 @@ MANIFEST
 }
 
 echo "Installing OpenSider Native Messaging Host..."
-echo "  Host script: $HOST_SCRIPT"
+echo "  Launcher: $HOST_LAUNCHER"
 echo "  Extension ID: $EXTENSION_ID"
 echo ""
 
