@@ -57,7 +57,7 @@ async function injectPrompt(prompt: string) {
   const baseUrl = await getBaseUrl();
   console.log("[OpenSider] injectPrompt baseUrl:", baseUrl);
 
-  // Create a new session for each prompt so it shows cleanly in WebUI
+  // Create a new session
   const createRes = await fetch(`${baseUrl}/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -67,7 +67,7 @@ async function injectPrompt(prompt: string) {
   const sessionId = session.id;
   console.log("[OpenSider] Created session:", sessionId);
 
-  // Send message to the new session
+  // Send message to the session
   const msgRes = await fetch(`${baseUrl}/session/${sessionId}/prompt_async`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -77,11 +77,17 @@ async function injectPrompt(prompt: string) {
   });
   console.log("[OpenSider] prompt_async response:", msgRes.status);
 
-  // Navigate the WebUI iframe to this session
-  // Tell side panel to update the iframe URL
+  // Tell WebUI to switch to this session via SSE event
+  await fetch(`${baseUrl}/tui/select-session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionID: sessionId }),
+  });
+  console.log("[OpenSider] select-session sent");
+
+  // Also tell side panel to reload iframe (fallback if SSE doesn't trigger navigation)
   chrome.runtime.sendMessage({
-    type: "opensider:navigate-session",
-    payload: { sessionId, baseUrl },
+    type: "opensider:reload-webui",
   }).catch(() => {});
 }
 

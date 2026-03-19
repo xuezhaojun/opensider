@@ -12,17 +12,16 @@ export default function App() {
     serverUrl,
   } = useChatStore();
   const [viewMode, setViewMode] = useState<ViewMode>("webui");
-  const [iframeUrl, setIframeUrl] = useState(serverUrl);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  // Use a key to force iframe reload
+  const [iframeKey, setIframeKey] = useState(0);
 
-  // Listen for session navigation from service worker
+  // Listen for reload events from service worker
   useEffect(() => {
     const handler = (message: any) => {
-      if (message.type === "opensider:navigate-session") {
-        const { sessionId, baseUrl } = message.payload;
-        const newUrl = `${baseUrl}/session/${sessionId}`;
-        console.log("[OpenSider] Navigating iframe to:", newUrl);
-        setIframeUrl(newUrl);
+      if (message.type === "opensider:reload-webui") {
+        // Force iframe reload by changing key
+        setIframeKey((k) => k + 1);
       }
     };
 
@@ -42,11 +41,6 @@ export default function App() {
       setViewMode("settings");
     });
   }, [setConnected]);
-
-  // Update iframe URL when serverUrl changes
-  useEffect(() => {
-    setIframeUrl(serverUrl);
-  }, [serverUrl]);
 
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-zinc-900">
@@ -74,8 +68,8 @@ export default function App() {
       ) : isConnected ? (
         <iframe
           ref={iframeRef}
-          key={iframeUrl}
-          src={iframeUrl}
+          key={iframeKey}
+          src={serverUrl}
           className="flex-1 w-full border-none"
           allow="clipboard-read; clipboard-write"
         />
