@@ -27,6 +27,12 @@
     {
       "matches": ["<all_urls>"],
       "js": ["src/content/index.ts"]
+    },
+    {
+      "matches": ["http://localhost:*/*"],
+      "js": ["src/content/webui-bridge.ts"],
+      "all_frames": true,
+      "run_at": "document_idle"
     }
   ],
   "options_page": "src/options/index.html",

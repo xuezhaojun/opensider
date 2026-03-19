@@ -54,27 +54,14 @@ async function ensureActiveSession(baseUrl: string): Promise<string> {
 // 1. Send message via prompt_async (reliable, works with WebUI)
 // 2. Switch WebUI to show the session
 async function injectPrompt(prompt: string) {
-  const baseUrl = await getBaseUrl();
-  console.log("[OpenSider] injectPrompt baseUrl:", baseUrl);
+  console.log("[OpenSider] injectPrompt via WebUI bridge");
 
-  // Use TUI API to inject prompt into the WebUI's current session
-  // This works because the WebUI is a TUI client connected via SSE
-  const clearRes = await fetch(`${baseUrl}/tui/clear-prompt`, {
-    method: "POST",
-  });
-  console.log("[OpenSider] clear-prompt:", clearRes.status);
-
-  const appendRes = await fetch(`${baseUrl}/tui/append-prompt`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text: prompt }),
-  });
-  console.log("[OpenSider] append-prompt:", appendRes.status);
-
-  const submitRes = await fetch(`${baseUrl}/tui/submit-prompt`, {
-    method: "POST",
-  });
-  console.log("[OpenSider] submit-prompt:", submitRes.status);
+  // Send to all frames (including the WebUI iframe in the side panel)
+  // The webui-bridge.ts content script will handle it
+  chrome.runtime.sendMessage({
+    type: "opensider:webui-inject",
+    payload: { prompt },
+  }).catch(() => {});
 }
 
 // Open side panel when clicking the extension icon
