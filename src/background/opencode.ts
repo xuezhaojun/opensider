@@ -155,11 +155,13 @@ export async function sendMessage(
       onError
     );
 
-    // Then send the message
+    // Then send the message using prompt_async (non-blocking)
     try {
-      await api(`/session/${sessionId}/message`, {
+      await api(`/session/${sessionId}/prompt_async`, {
         method: "POST",
-        body: JSON.stringify({ content: prompt }),
+        body: JSON.stringify({
+          parts: [{ type: "text", text: prompt }],
+        }),
       });
     } catch (err: any) {
       abortController.abort();
@@ -184,7 +186,7 @@ async function consumeSSEStream(
   let fullText = "";
 
   try {
-    const res = await fetch(`${config.baseUrl}/session/${sessionId}/event`, {
+    const res = await fetch(`${config.baseUrl}/event`, {
       headers: headers(),
       signal: abortController.signal,
     });
@@ -209,26 +211,30 @@ async function consumeSSEStream(
       buffer = parseSSELines(buffer, (data) => {
         try {
           const parsed = JSON.parse(data);
+          const props = parsed.properties;
 
-          if (
-            parsed.type === "message.part.delta" &&
-            parsed.properties?.content
-          ) {
-            fullText += parsed.properties.content;
-            onChunk(fullText);
+          // Stream text deltas
+          if (parsed.type === "message.part.delta" && props?.delta) {
+            if (props.field === "content" || props.field === "text") {
+              fullText += props.delta;
+              onChunk(fullText);
+            }
           }
 
-          if (
-            parsed.type === "message.complete" ||
-            parsed.type === "message.part.done"
-          ) {
+          // Session idle = response complete
+          if (parsed.type === "session.idle") {
             abortController.abort();
             onDone(fullText);
           }
 
+          // Message updated (may contain complete text)
+          if (parsed.type === "message.updated" && props?.info?.role === "assistant") {
+            // Don't override streaming text unless we haven't received any
+          }
+
           if (parsed.type === "error") {
             abortController.abort();
-            onError(parsed.properties?.message || "Unknown error");
+            onError(props?.message || "Unknown error");
           }
         } catch {
           // Ignore non-JSON events
