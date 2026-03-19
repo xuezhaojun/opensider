@@ -54,14 +54,113 @@ async function ensureActiveSession(baseUrl: string): Promise<string> {
 // 1. Send message via prompt_async (reliable, works with WebUI)
 // 2. Switch WebUI to show the session
 async function injectPrompt(prompt: string) {
-  console.log("[OpenSider] injectPrompt via WebUI bridge");
+  const baseUrl = await getBaseUrl();
+  console.log("[OpenSider] injectPrompt");
 
-  // Send to all frames (including the WebUI iframe in the side panel)
-  // The webui-bridge.ts content script will handle it
-  chrome.runtime.sendMessage({
-    type: "opensider:webui-inject",
-    payload: { prompt },
-  }).catch(() => {});
+  // Strategy: find a tab with OpenCode WebUI and inject via scripting API
+  // If no tab found, open one
+  let webuiTab = await findOrCreateWebUITab(baseUrl);
+  if (!webuiTab?.id) {
+    console.error("[OpenSider] Could not find or create WebUI tab");
+    return;
+  }
+
+  // Wait for tab to load
+  await waitForTabLoad(webuiTab.id);
+
+  // Inject the prompt into the WebUI via scripting API
+  const escapedPrompt = prompt.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$/g, "\\$");
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: webuiTab.id },
+      func: (promptText: string) => {
+        // Find textarea
+        const textarea = document.querySelector("textarea") as HTMLTextAreaElement | null;
+        if (!textarea) {
+          console.warn("[OpenSider] No textarea found in WebUI");
+          return;
+        }
+
+        // Set value via native setter (React-compatible)
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, "value"
+        )?.set;
+        nativeSetter?.call(textarea, promptText);
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+        // Focus the textarea
+        textarea.focus();
+
+        // Submit after React state update
+        setTimeout(() => {
+          // Try Enter key
+          textarea.dispatchEvent(new KeyboardEvent("keydown", {
+            key: "Enter",
+            code: "Enter",
+            keyCode: 13,
+            bubbles: true,
+          }));
+
+          // Also try finding submit button
+          const buttons = document.querySelectorAll("button");
+          for (const btn of buttons) {
+            const svg = btn.querySelector("svg");
+            const ariaLabel = (btn.getAttribute("aria-label") || "").toLowerCase();
+            if (svg && (ariaLabel.includes("send") || ariaLabel.includes("submit") || btn.closest("form"))) {
+              btn.click();
+              return;
+            }
+          }
+
+          // Try form submit
+          const form = textarea.closest("form");
+          if (form) {
+            form.dispatchEvent(new Event("submit", { bubbles: true }));
+          }
+        }, 300);
+      },
+      args: [prompt],
+    });
+    console.log("[OpenSider] Script injected into WebUI tab");
+  } catch (err) {
+    console.error("[OpenSider] Script injection failed:", err);
+  }
+}
+
+async function findOrCreateWebUITab(baseUrl: string): Promise<chrome.tabs.Tab | null> {
+  // Look for existing tab with the WebUI URL
+  const tabs = await chrome.tabs.query({ url: `${baseUrl}/*` });
+  if (tabs.length > 0) {
+    // Bring it to front
+    await chrome.tabs.update(tabs[0].id!, { active: true });
+    return tabs[0];
+  }
+
+  // No existing tab, create one
+  const tab = await chrome.tabs.create({ url: baseUrl, active: false });
+  return tab;
+}
+
+async function waitForTabLoad(tabId: number): Promise<void> {
+  const tab = await chrome.tabs.get(tabId);
+  if (tab.status === "complete") return;
+
+  return new Promise((resolve) => {
+    const listener = (id: number, info: { status?: string }) => {
+      if (id === tabId && info.status === "complete") {
+        chrome.tabs.onUpdated.removeListener(listener);
+        // Extra delay for SPA to initialize
+        setTimeout(resolve, 1000);
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+    // Timeout fallback
+    setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, 10000);
+  });
 }
 
 // Open side panel when clicking the extension icon
