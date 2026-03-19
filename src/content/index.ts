@@ -1,6 +1,15 @@
 import { MSG } from "@/shared/types";
 import { extractPageContext } from "./page-extractor";
 
+// Safe wrapper for chrome.runtime.sendMessage to handle extension context invalidation
+function safeSendMessage(message: any) {
+  try {
+    chrome.runtime.sendMessage(message).catch(() => {});
+  } catch {
+    // Extension context invalidated (extension was reloaded/updated)
+  }
+}
+
 // ---- Floating Button ----
 function createFloatButton() {
   const host = document.createElement("div");
@@ -91,7 +100,7 @@ function createFloatButton() {
       e.preventDefault();
       return;
     }
-    chrome.runtime.sendMessage({ type: MSG.OPEN_SIDEPANEL });
+    safeSendMessage({ type: MSG.OPEN_SIDEPANEL });
   });
 
   shadow.appendChild(btn);
@@ -199,11 +208,11 @@ function createToolbarHost() {
 
       const context = extractPageContext(selection);
 
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         type: MSG.QUICK_ACTION,
         payload: { action: action.id, text: selection, context },
       });
-      chrome.runtime.sendMessage({ type: MSG.OPEN_SIDEPANEL });
+      safeSendMessage({ type: MSG.OPEN_SIDEPANEL });
       hideToolbar();
     });
     toolbarEl.appendChild(btn);
@@ -291,10 +300,10 @@ function init() {
   // Send initial page context
   setTimeout(() => {
     const context = extractPageContext();
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: MSG.PAGE_CONTEXT,
       payload: context,
-    }).catch(() => {});
+    });
   }, 1000);
 }
 

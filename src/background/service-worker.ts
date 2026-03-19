@@ -79,6 +79,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 // Handle messages from content scripts and side panel
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  // Ignore messages that aren't ours (other extensions, Chrome internals)
+  if (!message || typeof message.type !== "string" || !message.type.startsWith("opensider:")) {
+    return false;
+  }
   handleMessage(message, sendResponse);
   return true; // Keep message channel open for async response
 });
