@@ -1,4 +1,4 @@
-import { writeFile, deleteFile, listFiles, getCwd } from "./native-host";
+import { writeFile, deleteFile, listFiles } from "./native-host";
 
 const TABS_DIR = ".opensider/tabs";
 let tabsBasePath: string | null = null;
@@ -18,20 +18,34 @@ function urlToFilename(url: string): string {
   }
 }
 
+// Get the OpenCode project directory from its API
+async function getProjectDir(): Promise<string> {
+  try {
+    const res = await fetch("http://localhost:4096/session");
+    const sessions = await res.json();
+    const list = Array.isArray(sessions) ? sessions : Object.values(sessions);
+    if (list.length > 0) {
+      const dir = (list[0] as any).directory;
+      if (dir) return dir;
+    }
+  } catch {
+    // Fallback
+  }
+  return "/tmp";
+}
+
 async function getTabsBasePath(): Promise<string> {
   if (tabsBasePath) return tabsBasePath;
-  const cwd = await getCwd();
-  tabsBasePath = `${cwd}/${TABS_DIR}`;
+  const projectDir = await getProjectDir();
+  tabsBasePath = `${projectDir}/${TABS_DIR}`;
+  console.log("[OpenSider] Tab sync directory:", tabsBasePath);
   return tabsBasePath;
 }
 
 // Skip non-content URLs
 function shouldSync(url: string | undefined): boolean {
   if (!url) return false;
-  return (
-    url.startsWith("http://") ||
-    url.startsWith("https://")
-  );
+  return url.startsWith("http://") || url.startsWith("https://");
 }
 
 // Extract page content from a tab
@@ -63,7 +77,7 @@ async function extractTabContent(
       return { title, url, markdown };
     }
   } catch {
-    // Tab not accessible
+    // Tab not accessible (e.g., chrome:// pages, restricted pages)
   }
   return null;
 }
@@ -75,7 +89,10 @@ async function syncTabToFile(tabId: number) {
 
   const basePath = await getTabsBasePath();
   const filename = urlToFilename(content.url);
-  await writeFile(`${basePath}/${filename}`, content.markdown);
+  const ok = await writeFile(`${basePath}/${filename}`, content.markdown);
+  if (ok) {
+    console.log("[OpenSider] Synced tab:", filename);
+  }
 }
 
 // Remove tab file
@@ -83,6 +100,7 @@ async function removeTabFile(url: string) {
   const basePath = await getTabsBasePath();
   const filename = urlToFilename(url);
   await deleteFile(`${basePath}/${filename}`);
+  console.log("[OpenSider] Removed tab file:", filename);
 }
 
 // Track tab URLs
@@ -92,14 +110,16 @@ const tabUrls = new Map<number, string>();
 async function syncAllTabs() {
   try {
     const tabs = await chrome.tabs.query({});
+    console.log("[OpenSider] Syncing", tabs.length, "tabs");
     for (const tab of tabs) {
       if (tab.id && shouldSync(tab.url)) {
         tabUrls.set(tab.id, tab.url!);
         await syncTabToFile(tab.id);
       }
     }
-  } catch {
-    // Silently fail if native host not available
+    console.log("[OpenSider] Tab sync complete");
+  } catch (err) {
+    console.error("[OpenSider] Tab sync failed:", err);
   }
 }
 
@@ -126,7 +146,7 @@ async function cleanupStaleFiles() {
 
 export function initTabSync() {
   // Delay initial sync to let native host connect first
-  setTimeout(() => syncAllTabs(), 3000);
+  setTimeout(() => syncAllTabs(), 5000);
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === "complete" && shouldSync(tab.url)) {
