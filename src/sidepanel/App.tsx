@@ -9,9 +9,8 @@ import type { PageContext } from "@/shared/types";
 
 type ViewMode = "webui" | "chat" | "settings";
 
-// Inject page context into OpenCode via TUI API
-async function injectContextViaTUI(
-  baseUrl: string,
+// Inject page context into OpenCode via TUI API (through service worker to avoid CORS)
+function injectContextViaTUI(
   action: string,
   text: string,
   context: PageContext
@@ -29,20 +28,10 @@ async function injectContextViaTUI(
 
   const prompt = contextPrefix + (prompts[action] || text);
 
-  try {
-    // Clear existing prompt
-    await fetch(`${baseUrl}/tui/clear-prompt`, { method: "POST" });
-    // Append our context
-    await fetch(`${baseUrl}/tui/append-prompt`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: prompt }),
-    });
-    // Auto-submit
-    await fetch(`${baseUrl}/tui/submit-prompt`, { method: "POST" });
-  } catch {
-    // Silently fail if TUI API not available
-  }
+  chrome.runtime.sendMessage({
+    type: MSG.INJECT_PROMPT,
+    payload: { prompt },
+  }).catch(() => {});
 }
 
 export default function App() {
@@ -89,7 +78,7 @@ export default function App() {
 
           if (viewMode === "webui" && isConnected) {
             // In WebUI mode, inject via TUI API
-            injectContextViaTUI(serverUrl, action, text, context);
+            injectContextViaTUI(action, text, context);
           } else {
             // In chat mode, use our own chat
             const prompts: Record<string, string> = {
@@ -109,7 +98,7 @@ export default function App() {
 
     chrome.runtime.onMessage.addListener(handler);
     return () => chrome.runtime.onMessage.removeListener(handler);
-  }, [viewMode, isConnected, serverUrl, updateAssistantMessage, finishStreaming, setStreamError, storeSendMessage, setPageContext]);
+  }, [viewMode, isConnected, updateAssistantMessage, finishStreaming, setStreamError, storeSendMessage, setPageContext]);
 
   // Check connection on mount
   useEffect(() => {

@@ -179,6 +179,25 @@ async function handleMessage(
         break;
       }
 
+      case MSG.INJECT_PROMPT: {
+        const { prompt } = message.payload as { prompt: string };
+        const { baseUrl } = await chrome.storage.local.get("connectionConfig")
+          .then((r) => (r.connectionConfig as ConnectionConfig) || { baseUrl: "http://localhost:4096" });
+        try {
+          await fetch(`${baseUrl}/tui/clear-prompt`, { method: "POST" });
+          await fetch(`${baseUrl}/tui/append-prompt`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: prompt }),
+          });
+          await fetch(`${baseUrl}/tui/submit-prompt`, { method: "POST" });
+          sendResponse({ ok: true });
+        } catch (err: any) {
+          sendResponse({ error: err.message });
+        }
+        break;
+      }
+
       default:
         sendResponse({ error: "Unknown message type" });
     }

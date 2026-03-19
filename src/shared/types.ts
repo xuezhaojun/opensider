@@ -26,6 +26,9 @@ export const MSG = {
   // Native Host / Auto-start
   AUTO_START: "opensider:auto-start",
   SERVER_STATUS: "opensider:server-status",
+
+  // TUI API
+  INJECT_PROMPT: "opensider:inject-prompt",
 } as const;
 
 export interface PageContext {
