@@ -35,7 +35,7 @@ export interface PageContext {
   url: string;
   title: string;
   selectedText?: string;
-  bodySnippet?: string;
+  bodyMarkdown?: string;
 }
 
 export interface ChatMessage {

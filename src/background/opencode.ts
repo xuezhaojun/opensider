@@ -97,10 +97,8 @@ function buildPrompt(content: string, context?: PageContext): string {
     parts.push(`\nSelected text:\n${quoted}`);
   }
 
-  if (context.bodySnippet && !context.selectedText) {
-    parts.push(
-      `\nPage content (excerpt):\n${context.bodySnippet.slice(0, 2000)}`
-    );
+  if (context.bodyMarkdown && !context.selectedText) {
+    parts.push(`\nPage content:\n${context.bodyMarkdown}`);
   }
 
   parts.push(`\n${content}`);
