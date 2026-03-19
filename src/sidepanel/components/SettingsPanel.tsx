@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useChatStore } from "../store/chat";
 import { MSG } from "@/shared/types";
 
@@ -87,12 +87,45 @@ export function SettingsPanel({ onClose }: Props) {
                 : "Connect"}
         </button>
 
-        <p className="text-xs text-zinc-500">
-          Start OpenCode server with:{" "}
-          <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded">
-            opencode serve
-          </code>
-        </p>
+        <div className="mt-2 space-y-2">
+          <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Quick Start
+          </p>
+          <CopyableCommand
+            label="1. Start OpenCode server"
+            command="opencode serve"
+          />
+          <CopyableCommand
+            label="2. Enable CORS for this extension"
+            command={`opencode serve --cors "chrome-extension://${chrome.runtime.id}"`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CopyableCommand({ label, command }: { label: string; command: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(command).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }, [command]);
+
+  return (
+    <div className="text-xs">
+      <span className="text-zinc-500 dark:text-zinc-400">{label}</span>
+      <div
+        onClick={handleCopy}
+        className="mt-0.5 flex items-center justify-between gap-2 bg-zinc-900 dark:bg-zinc-950 text-zinc-100 rounded-md px-2.5 py-1.5 cursor-pointer hover:bg-zinc-800 transition-colors group"
+      >
+        <code className="break-all">{command}</code>
+        <span className="shrink-0 text-zinc-400 group-hover:text-zinc-200 transition-colors">
+          {copied ? "Copied!" : "Copy"}
+        </span>
       </div>
     </div>
   );
