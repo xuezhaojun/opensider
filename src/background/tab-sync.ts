@@ -76,8 +76,8 @@ async function extractTabContent(
       const markdown = `# ${title}\n\nSource: ${url}\n\n${text}`;
       return { title, url, markdown };
     }
-  } catch {
-    // Tab not accessible (e.g., chrome:// pages, restricted pages)
+  } catch (err) {
+    console.warn("[OpenSider] extractTabContent failed for tab", tabId, err);
   }
   return null;
 }
@@ -85,13 +85,18 @@ async function extractTabContent(
 // Write tab content to file
 async function syncTabToFile(tabId: number) {
   const content = await extractTabContent(tabId);
-  if (!content) return;
+  if (!content) {
+    console.log("[OpenSider] No content for tab", tabId);
+    return;
+  }
 
   const basePath = await getTabsBasePath();
   const filename = urlToFilename(content.url);
   const ok = await writeFile(`${basePath}/${filename}`, content.markdown);
   if (ok) {
     console.log("[OpenSider] Synced tab:", filename);
+  } else {
+    console.warn("[OpenSider] writeFile failed for:", filename);
   }
 }
 
