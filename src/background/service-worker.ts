@@ -8,6 +8,7 @@ import {
   createNewSession,
   switchSession,
 } from "./opencode";
+import { autoStartServer, getServerStatus } from "./native-host";
 
 // Open side panel when clicking the extension icon
 chrome.sidePanel
@@ -151,6 +152,33 @@ async function handleMessage(
         break;
       }
 
+      case MSG.AUTO_START: {
+        const port = message.payload?.port || 4096;
+        const cors = `chrome-extension://${chrome.runtime.id}`;
+        const result = await autoStartServer(port, cors);
+
+        if (result.success) {
+          const baseUrl = `http://localhost:${result.port}`;
+          setConfig({ baseUrl });
+          await chrome.storage.local.set({
+            connectionConfig: { baseUrl, autoStart: true, port: result.port },
+          });
+        }
+
+        sendResponse(result);
+        break;
+      }
+
+      case MSG.SERVER_STATUS: {
+        try {
+          const status = await getServerStatus();
+          sendResponse(status);
+        } catch {
+          sendResponse({ running: false, managed: false, port: 4096 });
+        }
+        break;
+      }
+
       default:
         sendResponse({ error: "Unknown message type" });
     }
@@ -159,10 +187,21 @@ async function handleMessage(
   }
 }
 
-// Restore config on startup
-chrome.storage.local.get("connectionConfig", (result) => {
-  const config = result.connectionConfig as { baseUrl: string; password?: string } | undefined;
+// Restore config on startup and auto-start if configured
+chrome.storage.local.get("connectionConfig", async (result) => {
+  const config = result.connectionConfig as ConnectionConfig | undefined;
   if (config) {
     setConfig(config);
+
+    // Auto-start server if previously configured
+    if (config.autoStart) {
+      const port = config.port || 4096;
+      const cors = `chrome-extension://${chrome.runtime.id}`;
+      try {
+        await autoStartServer(port, cors);
+      } catch {
+        // Native host not installed, silently ignore
+      }
+    }
   }
 });

@@ -22,6 +22,10 @@ export const MSG = {
   LIST_SESSIONS: "opensider:list-sessions",
   SWITCH_SESSION: "opensider:switch-session",
   NEW_SESSION: "opensider:new-session",
+
+  // Native Host / Auto-start
+  AUTO_START: "opensider:auto-start",
+  SERVER_STATUS: "opensider:server-status",
 } as const;
 
 export interface PageContext {
@@ -42,6 +46,8 @@ export interface ChatMessage {
 export interface ConnectionConfig {
   baseUrl: string;
   password?: string;
+  autoStart?: boolean;
+  port?: number;
 }
 
 export type QuickAction = "explain" | "translate" | "summarize" | "improve" | "ask";
