@@ -77,17 +77,10 @@ async function injectPrompt(prompt: string) {
   });
   console.log("[OpenSider] prompt_async response:", msgRes.status);
 
-  // Tell WebUI to switch to this session via SSE event
-  await fetch(`${baseUrl}/tui/select-session`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sessionID: sessionId }),
-  });
-  console.log("[OpenSider] select-session sent");
-
-  // Also tell side panel to reload iframe (fallback if SSE doesn't trigger navigation)
+  // Tell side panel to reload iframe, then switch session after it loads
   chrome.runtime.sendMessage({
     type: "opensider:reload-webui",
+    payload: { sessionId },
   }).catch(() => {});
 }
 
@@ -292,6 +285,21 @@ async function handleMessage(
 
         const prompt = contextPrefix + (prompts[action] || text);
         await injectPrompt(prompt);
+        sendResponse({ ok: true });
+        break;
+      }
+
+      case "opensider:select-session": {
+        const baseUrl = await getBaseUrl();
+        const sid = message.payload?.sessionId;
+        if (sid) {
+          await fetch(`${baseUrl}/tui/select-session`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionID: sid }),
+          });
+          console.log("[OpenSider] select-session via SW:", sid);
+        }
         sendResponse({ ok: true });
         break;
       }

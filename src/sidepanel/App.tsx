@@ -16,11 +16,17 @@ export default function App() {
   // Use a key to force iframe reload
   const [iframeKey, setIframeKey] = useState(0);
 
+  // Pending session to select after iframe loads
+  const pendingSessionRef = useRef<string | null>(null);
+
   // Listen for reload events from service worker
   useEffect(() => {
     const handler = (message: any) => {
       if (message.type === "opensider:reload-webui") {
-        // Force iframe reload by changing key
+        const sessionId = message.payload?.sessionId;
+        if (sessionId) {
+          pendingSessionRef.current = sessionId;
+        }
         setIframeKey((k) => k + 1);
       }
     };
@@ -28,6 +34,31 @@ export default function App() {
     chrome.runtime.onMessage.addListener(handler);
     return () => chrome.runtime.onMessage.removeListener(handler);
   }, []);
+
+  // After iframe loads, select the pending session
+  const handleIframeLoad = () => {
+    const sessionId = pendingSessionRef.current;
+    if (!sessionId) return;
+    pendingSessionRef.current = null;
+
+    // Wait for WebUI to establish SSE connection, then switch session
+    setTimeout(async () => {
+      try {
+        await fetch(`${serverUrl}/tui/select-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionID: sessionId }),
+        });
+        console.log("[OpenSider] select-session after iframe load:", sessionId);
+      } catch {
+        // CORS or fetch error - try via service worker
+        chrome.runtime.sendMessage({
+          type: "opensider:select-session",
+          payload: { sessionId },
+        }).catch(() => {});
+      }
+    }, 1500);
+  };
 
   // Check connection on mount
   useEffect(() => {
@@ -72,6 +103,7 @@ export default function App() {
           src={serverUrl}
           className="flex-1 w-full border-none"
           allow="clipboard-read; clipboard-write"
+          onLoad={handleIframeLoad}
         />
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-zinc-400 text-sm space-y-3">
