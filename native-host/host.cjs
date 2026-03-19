@@ -274,6 +274,69 @@ readMessage(async (msg) => {
       break;
     }
 
+    case "write-file": {
+      const filePath = msg.path;
+      const content = msg.content;
+      if (!filePath || content === undefined) {
+        sendMessage({ type: "error", error: "write-file requires path and content" });
+        break;
+      }
+      try {
+        const dir = path.dirname(filePath);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(filePath, content, "utf8");
+        sendMessage({ type: "file-written", path: filePath });
+      } catch (e) {
+        sendMessage({ type: "error", error: "write-file failed: " + e.message });
+      }
+      break;
+    }
+
+    case "delete-file": {
+      const delPath = msg.path;
+      if (!delPath) {
+        sendMessage({ type: "error", error: "delete-file requires path" });
+        break;
+      }
+      try {
+        if (fs.existsSync(delPath)) {
+          fs.unlinkSync(delPath);
+        }
+        sendMessage({ type: "file-deleted", path: delPath });
+      } catch (e) {
+        sendMessage({ type: "error", error: "delete-file failed: " + e.message });
+      }
+      break;
+    }
+
+    case "list-files": {
+      const listDir = msg.path;
+      if (!listDir) {
+        sendMessage({ type: "error", error: "list-files requires path" });
+        break;
+      }
+      try {
+        if (fs.existsSync(listDir)) {
+          const files = fs.readdirSync(listDir);
+          sendMessage({ type: "file-list", path: listDir, files });
+        } else {
+          sendMessage({ type: "file-list", path: listDir, files: [] });
+        }
+      } catch (e) {
+        sendMessage({ type: "error", error: "list-files failed: " + e.message });
+      }
+      break;
+    }
+
+    case "get-cwd": {
+      // Return the CWD where opencode is running
+      const cwd = opencodeProcess
+        ? (msg.cwd || process.env.HOME || "/")
+        : (process.env.HOME || "/");
+      sendMessage({ type: "cwd", cwd });
+      break;
+    }
+
     default:
       sendMessage({ type: "error", error: "Unknown command: " + msg.command });
   }

@@ -9,6 +9,7 @@ import {
   switchSession,
 } from "./opencode";
 import { autoStartServer, getServerStatus } from "./native-host";
+import { initTabSync } from "./tab-sync";
 
 // Open side panel when clicking the extension icon
 chrome.sidePanel
@@ -223,4 +224,7 @@ chrome.storage.local.get("connectionConfig", async (result) => {
       }
     }
   }
+
+  // Initialize tab-to-file sync
+  initTabSync();
 });

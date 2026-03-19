@@ -6,9 +6,12 @@
   "permissions": [
     "sidePanel",
     "activeTab",
+    "tabs",
+    "scripting",
     "storage",
     "contextMenus",
-    "nativeMessaging"
+    "nativeMessaging",
+    "alarms"
   ],
   "host_permissions": [
     "http://localhost:*/*"
